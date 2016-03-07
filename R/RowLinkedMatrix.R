@@ -1,11 +1,14 @@
-subset.RowLinkedMatrix <- function(x, i, j, drop) {
+subset.RowLinkedMatrix <- function(x, i, j, ..., drop) {
+    nX <- nrow(x)
+    pX <- ncol(x)
     if (missing(i)) {
-        i <- 1:nrow(x)
+        i <- 1:nX
     }
     if (missing(j)) {
-        j <- 1:ncol(x)
+        j <- 1:pX
     }
     if (class(i) == "logical") {
+        i <- rep_len(i, nX)
         i <- which(i)
     } else if (class(i) == "character") {
         i <- sapply(i, function(name) {
@@ -13,6 +16,7 @@ subset.RowLinkedMatrix <- function(x, i, j, drop) {
         }, USE.NAMES = FALSE)
     }
     if (class(j) == "logical") {
+        j <- rep_len(j, pX)
         j <- which(j)
     } else if (class(j) == "character") {
         j <- sapply(j, function(name) {
@@ -23,8 +27,7 @@ subset.RowLinkedMatrix <- function(x, i, j, drop) {
     p <- length(j)
     originalOrder <- (1:n)[order(i)]
     sortedRows <- sort(i)
-    dimX <- dim(x)
-    if (p > dimX[2] | n > dimX[1]) {
+    if (p > pX | n > nX) {
         stop("Either the number of columns or number of rows requested exceed the number of rows or columns in x, try dim(x)...")
     }
     Z <- matrix(nrow = n, ncol = p, NA)
@@ -37,7 +40,8 @@ subset.RowLinkedMatrix <- function(x, i, j, drop) {
         TMP <- matrix(data = INDEX[INDEX[, 1] == k, ], ncol = 3)
         ini <- end + 1
         end <- ini + nrow(TMP) - 1
-        Z[ini:end, ] <- x[[k]][TMP[, 3], j, drop = FALSE]
+        # Convert to matrix to support data frames
+        Z[ini:end, ] <- as.matrix(x[[k]][TMP[, 3], j, drop = FALSE])
     }
     if (length(originalOrder) > 1) {
         Z[] <- Z[originalOrder, ]
@@ -84,7 +88,7 @@ replace.RowLinkedMatrix <- function(x, i, j, ..., value) {
 dim.RowLinkedMatrix <- function(x) {
     p <- ncol(x[[1]])
     n <- 0
-    for (i in 1:length(x)) {
+    for (i in 1:nNodes(x)) {
         n <- n + nrow(x[[i]])
     }
     return(c(n, p))
@@ -104,6 +108,7 @@ rownames.RowLinkedMatrix <- function(x) {
     }
     return(out)
 }
+
 
 # This function looks like an S3 method, but isn't one.
 colnames.RowLinkedMatrix <- function(x) {
@@ -130,7 +135,7 @@ dimnames.RowLinkedMatrix <- function(x) {
 
 # This function looks like an S3 method, but isn't one.
 `colnames<-.RowLinkedMatrix` <- function(x, value) {
-    for (i in 1:length(x)) {
+    for (i in 1:nNodes(x)) {
         colnames(x[[i]]) <- value
     }
     return(x)
@@ -142,7 +147,7 @@ dimnames.RowLinkedMatrix <- function(x) {
     d <- dim(x)
     rownames <- value[[1]]
     colnames <- value[[2]]
-    if (!is.list(value) || length(value) != 2 || !(is.null(rownames) || length(rownames) == d[1]) || !(is.null(colnames) || 
+    if (!is.list(value) || length(value) != 2 || !(is.null(rownames) || length(rownames) == d[1]) || !(is.null(colnames) ||
         length(colnames) == d[2])) {
         stop("invalid dimnames")
     }
@@ -152,15 +157,51 @@ dimnames.RowLinkedMatrix <- function(x) {
 }
 
 
+#' Combine matrix-like objects by columns.
+#'
+#' This method is currently undefined for
+#' \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} objects.
+#'
+#' @param ... Matrix-like objects to be combined by columns.
+#' @param deparse.level Currently unused, defaults to 0.
 #' @export
-as.matrix.RowLinkedMatrix <- function(x, ...) {
-    x[, , drop = FALSE]
+cbind.RowLinkedMatrix <- function(..., deparse.level = 0) {
+    stop("cbind is currently undefined for RowLinkedMatrix")
+}
+
+
+#' Combine matrix-like objects by rows.
+#'
+#' Compared to the
+#' \code{\link[=initialize,RowLinkedMatrix-method]{RowLinkedMatrix}}
+#' constructor, nested \code{\link[=LinkedMatrix-class]{LinkedMatrix}} objects
+#' that are passed via \code{...} will not be treated as matrix-like objects,
+#' but their nodes will be extracted and merged with the new
+#' \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object for a more
+#' compact representation.
+#'
+#' @param ... Matrix-like objects to be combined by rows.
+#' @param deparse.level Currently unused, defaults to 0.
+#' @export
+rbind.RowLinkedMatrix <- function(..., deparse.level = 1) {
+    dotdotdot <- list(...)
+    nodes <- list()
+    for (i in seq_len(length(dotdotdot))) {
+        node <- dotdotdot[[i]]
+        if (is(node, "LinkedMatrix")) {
+            # Extract nodes from LinkedMatrix object
+            nodes <- append(nodes, slot(node, ".Data"))
+        } else {
+            nodes <- append(nodes, node)
+        }
+    }
+    do.call(RowLinkedMatrix, nodes)
 }
 
 
 #' @export
 nodes.RowLinkedMatrix <- function(x) {
-    n <- length(x)
+    n <- nNodes(x)
     OUT <- matrix(nrow = n, ncol = 3, NA)
     colnames(OUT) <- c("node", "row.ini", "row.end")
     end <- 0
@@ -192,43 +233,89 @@ index.RowLinkedMatrix <- function(x) {
 }
 
 
-#' An S4 class to represent a row-linked \code{LinkedMatrix}
+#' An S4 class to represent a row-linked
+#' \code{\link[=LinkedMatrix-class]{LinkedMatrix}}.
 #'
-#' \code{RowLinkedMatrix} inherits from \code{\link{list}}.
+#' This class treats a list of matrix-like objects that are linked together by
+#' rows and have the same number of columns similarly to a regular \code{matrix}
+#' by implementing key methods such as \code{[} and \code{[<-} for extracting
+#' and replacing matrix elements, \code{dim} to retrieve dimensions, and
+#' \code{dimnames} and \code{dimnames<-} to retrieve and set dimnames. Each list
+#' element is called a node and can be extracted or replaced using \code{[[} and
+#' \code{[[<-}. A matrix-like object is one that has two dimensions and
+#' implements at least \code{dim} and \code{[}.
+#'
+#' There are several ways to create an instance of this class: either by using
+#' one of the constructors
+#' \code{\link[=initialize,RowLinkedMatrix-method]{RowLinkedMatrix(...)}} or
+#' \code{\link[=initialize,RowLinkedMatrix-method]{new("RowLinkedMatrix",...)}},
+#' or by using the more general \code{\link{LinkedMatrix}} function that
+#' constructs objects of certain dimensions with a configurable number and type
+#' of nodes.
 #'
 #' @export RowLinkedMatrix
 #' @exportClass RowLinkedMatrix
 RowLinkedMatrix <- setClass("RowLinkedMatrix", contains = "list")
 
 
-#' Creates a new RowLinkedMatrix instance.
-#' 
+#' Creates a new \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} instance.
+#'
+#' This method is run when a
+#' \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object is created using
+#' \code{\link[=initialize,RowLinkedMatrix-method]{RowLinkedMatrix(...)}} or
+#' \code{\link[=initialize,RowLinkedMatrix-method]{new("RowLinkedMatrix",...)}}
+#' and accepts a list of matrix-like objects as \code{...}. A matrix-like object
+#' is one that has two dimensions and implements at least \code{dim} and
+#' \code{[}. Each object needs to have the same number of columns to be linked
+#' together. \code{\link[=LinkedMatrix-class]{LinkedMatrix}} can be nested as
+#' long as they are conformable. If no matrix-like objects are given, a single
+#' 1x1 node of type \code{matrix} filled with \code{NA} is returned.
+#'
 #' @inheritParams base::list
-#' @param .Object The \code{RowLinkedMatrix} instance to be initialized.
+#' @param .Object The \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}}
+#'   instance to be initialized. This argument is passed in by R and can be
+#'   ignored, but still needs to be documented.
+#' @param ... A sequence of matrix-like objects of the same column-dimension.
 #' @export
-setMethod("initialize", "RowLinkedMatrix", function(.Object, ...) {
-    list <- list(...)
+setMethod("initialize", signature(.Object = "RowLinkedMatrix"), function(.Object, ...) {
+    nodes <- list(...)
     # Append at least one matrix
-    if (length(list) == 0) {
-        list[[1]] <- matrix()
+    if (length(nodes) == 0) {
+        nodes[[1]] <- matrix()
+    } else {
+        # Detect non-matrix objects by checking dimensions
+        if (any(sapply(nodes, function(x) length(dim(x)) != 2))) {
+            stop("arguments need to be matrix-like")
+        }
+        # Detect matrices that do not match in dimensions
+        if (length(unique(sapply(nodes, ncol))) != 1) {
+            stop("arguments need the same number of columns")
+        }
     }
-    .Object <- callNextMethod(.Object, list)
+    .Object <- callNextMethod(.Object, nodes)
     return(.Object)
 })
 
 
-#' Extract parts of a \code{RowLinkedMatrix}.
-#' 
+#' Extract parts of a \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}}.
+#'
+#' This method is run when the \code{[]} operator is used on a
+#' \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object.
+#'
 #' @inheritParams base::`[`
 #' @param j Column indices.
+#' @param ... Additional arguments
 #' @export
 setMethod("[", signature(x = "RowLinkedMatrix"), subset.RowLinkedMatrix)
 
 
-#' Replace parts of a ColumnLinkedMatrix.
-#' 
+#' Replace parts of a \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}}.
+#'
+#' This method is run when the \code{[]} operator is used in an assignment on a
+#' \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object.
+#'
 #' @inheritParams base::`[<-`
 #' @param j Column indices.
-#' @param ... Optional arguments.
+#' @param ... Additional arguments
 #' @export
 setReplaceMethod("[", signature(x = "RowLinkedMatrix"), replace.RowLinkedMatrix)
