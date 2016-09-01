@@ -8,6 +8,8 @@ LinkedMatrix is an R package that provides matrices implemented as lists of matr
 
 It was originally developed for the [BGData](https://github.com/QuantGen/BGData) package to address the array size limit of [ff](http://cran.r-project.org/package=ff) (`length must be between 1 and .Machine$integer.max`) by chaining multiple `ff` objects together.
 
+This package is deliberately kept simple. For computational methods that use LinkedMatrix check out the [BGData package](https://github.com/QuantGen/BGData).
+
 
 Example
 -------
@@ -41,7 +43,7 @@ dim(m)
 m[1, ]
 m[, 1]
 ```
-**[Further examples](https://github.com/QuantGen/BGData/blob/master/README.md)**
+
 
 Installation
 ------------
@@ -58,3 +60,9 @@ To get the current development version from GitHub:
 # install.packages("devtools")
 devtools::install_github("QuantGen/LinkedMatrix")
 ```
+
+
+Documentation
+-------------
+
+Further documentation can be found on [RDocumentation](http://www.rdocumentation.org/packages/LinkedMatrix).

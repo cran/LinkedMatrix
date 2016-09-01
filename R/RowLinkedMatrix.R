@@ -1,4 +1,5 @@
 subset.RowLinkedMatrix <- function(x, i, j, ..., drop) {
+    # Check indices and dimensions
     nX <- nrow(x)
     pX <- ncol(x)
     if (missing(i)) {
@@ -11,43 +12,57 @@ subset.RowLinkedMatrix <- function(x, i, j, ..., drop) {
         i <- rep_len(i, nX)
         i <- which(i)
     } else if (class(i) == "character") {
-        i <- sapply(i, function(name) {
-            which(rownames(x) == name)
-        }, USE.NAMES = FALSE)
+        i <- match(i, rownames(x))
     }
     if (class(j) == "logical") {
         j <- rep_len(j, pX)
         j <- which(j)
     } else if (class(j) == "character") {
-        j <- sapply(j, function(name) {
-            which(colnames(x) == name)
-        }, USE.NAMES = FALSE)
+        j <- match(j, colnames(x))
     }
     n <- length(i)
     p <- length(j)
-    originalOrder <- (1:n)[order(i)]
-    sortedRows <- sort(i)
     if (p > pX | n > nX) {
         stop("Either the number of columns or number of rows requested exceed the number of rows or columns in x, try dim(x)...")
     }
-    Z <- matrix(nrow = n, ncol = p, NA)
-    colnames(Z) <- colnames(x)[j]
-    rownames(Z) <- rownames(x)[i]
-    INDEX <- index(x)[sortedRows, , drop = FALSE]
-    whatChunks <- unique(INDEX[, 1])
-    end <- 0
-    for (k in whatChunks) {
-        TMP <- matrix(data = INDEX[INDEX[, 1] == k, ], ncol = 3)
-        ini <- end + 1
-        end <- ini + nrow(TMP) - 1
-        # Convert to matrix to support data frames
-        Z[ini:end, ] <- as.matrix(x[[k]][TMP[, 3], j, drop = FALSE])
+    # Providing a sorted row index will eliminate the need to reorder the
+    # result matrix later (avoiding a copy)
+    isUnsorted <- is.unsorted(i)
+    if (isUnsorted) {
+        # Reorder rows for sequential retrieval by chunk
+        originalOrder <- rank(i, ties.method = "first")
+        sortedRows <- sort(i)
+    } else {
+        sortedRows <- i
     }
-    if (length(originalOrder) > 1) {
-        Z[] <- Z[originalOrder, ]
+    # Compute node inventory
+    globalIndex <- index(x, sortedRows)
+    whatChunks <- unique(globalIndex[, 1])
+    # If there are several chunks involved, aggregate the result in a separate
+    # matrix, otherwise pass through result
+    if (length(whatChunks) > 1) {
+        # Initialize result matrix as integer matrix because it does not take up as
+        # much space as double() but is more useful than logical()
+        Z <- matrix(data = integer(), nrow = n, ncol = p)
+        # Use dimnames instead of rownames and colnames to avoid copy
+        dimnames(Z) <- list(rownames(x)[sortedRows], colnames(x)[j])
+        end <- 0
+        for (k in whatChunks) {
+            localIndex <- globalIndex[globalIndex[, 1] == k, , drop = FALSE]
+            ini <- end + 1
+            end <- ini + nrow(localIndex) - 1
+            # Convert to matrix to support data frames
+            Z[ini:end, ] <- as.matrix(x[[k]][localIndex[, 3], j, drop = FALSE])
+        }
+    } else {
+        Z <- as.matrix(x[[whatChunks]][globalIndex[, 3], j, drop = FALSE])
+    }
+    if (isUnsorted) {
+        # Return to original order
+        Z <- Z[originalOrder, , drop = FALSE]
     }
     if (drop == TRUE && (n == 1 || p == 1)) {
-        # Revert drop.
+        # Let R handle drop behavior
         return(Z[, ])
     } else {
         return(Z)
@@ -64,16 +79,16 @@ replace.RowLinkedMatrix <- function(x, i, j, ..., value) {
     }
     Z <- matrix(nrow = length(i), ncol = length(j), data = value)
     # Retrieve nodes and index from ... to speed up sequential writes
-    ellipsis <- list(...)
-    if (is.null(ellipsis$nodes)) {
+    dotdotdot <- list(...)
+    if (is.null(dotdotdot$nodes)) {
         nodes <- nodes(x)
     } else {
-        nodes <- ellipsis$nodes
+        nodes <- dotdotdot$nodes
     }
-    if (is.null(ellipsis$index)) {
+    if (is.null(dotdotdot$index)) {
         index <- index(x)
     } else {
-        index <- ellipsis$index
+        index <- dotdotdot$index
     }
     for (k in 1:nrow(nodes)) {
         rows_z <- (i >= nodes[k, 2]) & (i <= nodes[k, 3])
@@ -202,34 +217,41 @@ rbind.RowLinkedMatrix <- function(..., deparse.level = 1) {
 #' @export
 nodes.RowLinkedMatrix <- function(x) {
     n <- nNodes(x)
-    OUT <- matrix(nrow = n, ncol = 3, NA)
-    colnames(OUT) <- c("node", "row.ini", "row.end")
+    OUT <- matrix(integer(), nrow = n, ncol = 3, dimnames = list(NULL, c("node", "row.ini", "row.end")))
     end <- 0
-    for (i in 1:n) {
+    for (node in seq_len(n)) {
         ini <- end + 1
-        end <- ini + nrow(x[[i]]) - 1
-        OUT[i, ] <- c(i, ini, end)
+        end <- ini + nrow(x[[node]]) - 1
+        OUT[node, ] <- c(node, ini, end)
     }
     return(OUT)
 }
 
 
 #' @export
-index.RowLinkedMatrix <- function(x) {
+index.RowLinkedMatrix <- function(x, i = NULL, ...) {
     nodes <- nodes(x)
-    nRowIndex <- nodes[nrow(nodes), 3]
-    INDEX <- matrix(nrow = nRowIndex, ncol = 3)
-    colnames(INDEX) <- c("node", "row.global", "row.local")
-    INDEX[, 2] <- 1:nRowIndex
-    end <- 0
-    for (i in 1:nrow(nodes)) {
-        nRowChunk <- nodes[i, 3] - nodes[i, 2] + 1
-        ini <- end + 1
-        end <- ini + nRowChunk - 1
-        INDEX[ini:end, 1] <- i
-        INDEX[ini:end, 3] <- 1:nRowChunk
+    n <- nodes[nrow(nodes), 3]
+    if (!is.null(i)) {
+        if (is.unsorted(i)) {
+            i <- sort(i)
+        }
+    } else {
+        i <- seq_len(n)
     }
-    return(INDEX)
+    OUT <- matrix(nrow = length(i), ncol = 3, dimnames = list(NULL, c("node", "row.global", "row.local")))
+    OUT[, 2] <- i
+    for (node in 1:nrow(nodes)) {
+        globalIdx <- which(i >= nodes[node, 2] & i <= nodes[node, 3])
+        if (node > 1) {
+            localIdx <- i[globalIdx] - nodes[node - 1, 3]
+        } else {
+            localIdx <- i[globalIdx]
+        }
+        OUT[globalIdx, 1] <- node
+        OUT[globalIdx, 3] <- localIdx
+    }
+    return(OUT)
 }
 
 

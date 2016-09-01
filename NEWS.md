@@ -1,3 +1,10 @@
+# LinkedMatrix 1.2.0
+
+* Fix wrong order in result when subsetting using unordered positive integers.
+* Add `i` and `j` parameters in `index` to only generate entries for those
+  indexes.
+* Various subsetting optimizations.
+
 # LinkedMatrix 1.1.0
 
 * Add `LinkedMatrix` constructor that creates either a `ColumnLinkedMatrix` or

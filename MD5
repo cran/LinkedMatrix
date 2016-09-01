@@ -1,14 +1,13 @@
-4668617a0b5221f61bacd6171b681c8f *DESCRIPTION
+c411d2d9dbd0419c4b4bcc23dc94677c *DESCRIPTION
 adf1cc2daedd636cc5bb58686fd4b45c *LICENSE
 e54caeaac9926bb64eaf80e7189984f9 *NAMESPACE
-93c1d5cf7204f2d9332096aeab15fa65 *NEWS.md
-0e597b1ba4694521b5a45af7125c7c4b *R/ColumnLinkedMatrix.R
-dd6ea722c4b066db31afd8eb344a11f0 *R/LinkedMatrix.R
-c5632755da396f3c3705fc3efd5e3c9a *R/RowLinkedMatrix.R
+d4f507b6c1ebc55e559c90fda1592c3e *NEWS.md
+3a0736bfa595a3e489c68fcd174c4e6e *R/ColumnLinkedMatrix.R
+0fbb582d96c57cb67154ccc7df236098 *R/LinkedMatrix.R
+ef23618a2d4712add4c2372845a33488 *R/RowLinkedMatrix.R
 144bfd8a17b69f833baed362045b02b3 *R/package.R
 baf62e7c24357b75edd80d84f9bb7402 *R/utils.R
-f0fa62f2cbbaf6acc2c8b5c2077167a1 *README.md
-b09006d44d80d217d74a3621276d552e *inst/staticdocs/index.R
+6596fb878ad6c572cd0a695eb18b7e65 *README.md
 199f4bad6259d2035f79f59926a33afc *man/ColumnLinkedMatrix-class.Rd
 3554b54568a2307c21b24b622a86c609 *man/LinkedMatrix-class.Rd
 f3aa9035c07cfac710d435d8d3d05b62 *man/LinkedMatrix-package.Rd
@@ -17,7 +16,7 @@ beffb429f546868509762688d4c5168b *man/RowLinkedMatrix-class.Rd
 84c8ff595d95ab6f8a29efbbdd532c7b *man/as.matrix.LinkedMatrix.Rd
 6dec12e3ce8a2370409048cde7cc6670 *man/cbind.ColumnLinkedMatrix.Rd
 68a34e01b2014c00beebc4f14ac10c2f *man/cbind.RowLinkedMatrix.Rd
-863290755295b39a6ce1ef3ebd93b92b *man/index.Rd
+811704e08a8c439b6b68b5f3b1454cdb *man/index.Rd
 d4165395c5cf7f1f3f7d1f931316bca6 *man/initialize-ColumnLinkedMatrix-method.Rd
 8e20a5d60c448e39500a3c6ed424ff7d *man/initialize-RowLinkedMatrix-method.Rd
 46c424e1d9072c8498cd626b5ecde7f2 *man/nNodes.Rd
@@ -30,4 +29,4 @@ b8b1ff26a87e5e584b24281e6db1d25e *man/rbind.ColumnLinkedMatrix.Rd
 e694210b6fe3851823645178dd0d2381 *man/subset-ColumnLinkedMatrix-method.Rd
 d123c2b99497750e03bbd17bad25d436 *man/subset-RowLinkedMatrix-method.Rd
 e91d39ded48f5c0963e3f71d656d71c4 *tests/testthat.R
-d0131504bf9f77478cb1116a1c2090a5 *tests/testthat/test-LinkedMatrix.R
+25984963362680cebf4ae9598aa90016 *tests/testthat/test-LinkedMatrix.R
