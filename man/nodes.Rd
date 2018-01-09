@@ -2,18 +2,17 @@
 % Please edit documentation in R/LinkedMatrix.R
 \name{nodes}
 \alias{nodes}
-\title{Returns the column or row indexes at which each node starts and ends.}
+\title{Returns the Column or Row Indexes at Which Each Node Starts and Ends.}
 \usage{
 nodes(x)
 }
 \arguments{
-\item{x}{Either a \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}
-or a \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object.}
+\item{x}{Either a \linkS4class{ColumnLinkedMatrix} or a \linkS4class{RowLinkedMatrix}
+object.}
 }
 \value{
 A matrix.
 }
 \description{
-Returns the column or row indexes at which each node starts and ends.
+Returns the Column or Row Indexes at Which Each Node Starts and Ends.
 }
-

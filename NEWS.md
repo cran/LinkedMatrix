@@ -1,3 +1,18 @@
+# LinkedMatrix 1.3.0
+
+* Add [crochet](https://cran.r-project.org/package=crochet) subsetting and
+  replacement support.
+* Add generic `as.ColumnLinkedMatrix` and `as.RowLinkedMatrix` for easy
+  creation of `LinkedMatrix` objects from `list`s of matrix-like objects
+  without `do.call`.
+* Warn if rownames (for `ColumnLinkedMatrix`) or colnames (for
+  `RowLinkedMatrix`) do not match.
+* Implement `str` method.
+* Implement `is.matrix` method.
+* Slight performance improvements in `nodes` methods.
+* New `sort` parameter in `index()` which is set by default.
+* Add examples.
+
 # LinkedMatrix 1.2.0
 
 * Fix wrong order in result when subsetting using unordered positive integers.

@@ -3,22 +3,38 @@
 \docType{class}
 \name{LinkedMatrix-class}
 \alias{LinkedMatrix-class}
-\title{An abstract S4 class union of
-\code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} and
-\code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}}.}
+\title{A Class Union of ColumnLinkedMatrix and RowLinkedMatrix.}
 \description{
-This class is a class union and can therefore not be initialized. It can be
-used to check whether an object is either of type
-\code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} or of type
-\code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} using \code{is(x,
-"LinkedMatrix")}, and to assign methods for both
-\code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} and
-\code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} classes, e.g.
-\code{\link[=show,LinkedMatrix-method]{show}}.
+This class is abstract and no objects can be created from it. It can be used
+to check whether an object is either of type \linkS4class{ColumnLinkedMatrix} or
+of type \linkS4class{RowLinkedMatrix} using \code{is(x, "LinkedMatrix")} and to assign
+methods for both \code{ColumnLinkedMatrix} and \code{RowLinkedMatrix} classes, e.g.
+\code{show}.
 }
-\seealso{
-\code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} or
-  \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} for implementations
-  of column-linked matrices or row-linked matrices, respectively.
+\section{Methods}{
+
+\itemize{
+\item \code{length}
+\item \code{as.matrix}
+\item \code{show}
+}
 }
 
+\examples{
+# Create an example RowLinkedMatrix from various matrix-like objects that
+# correspond in dimensions
+m <- RowLinkedMatrix(
+    ff::ff(initdata = rnorm(50), dim = c(5, 10)),
+    bigmemory::big.matrix(init = rnorm(50), nrow = 5, ncol = 10),
+    matrix(data = rnorm(50), nrow = 5, ncol = 10)
+)
+
+# Test if m is an object of either type ColumnLinkedMatrix or RowLinkedMatrix
+if (is(m, "LinkedMatrix")) {
+    message("m is a LinkedMatrix")
+}
+}
+\seealso{
+\linkS4class{ColumnLinkedMatrix} and \linkS4class{RowLinkedMatrix} for
+implementations of column-linked and row-linked matrices, respectively.
+}

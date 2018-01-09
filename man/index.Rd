@@ -2,14 +2,14 @@
 % Please edit documentation in R/LinkedMatrix.R
 \name{index}
 \alias{index}
-\title{Maps each column or row index of a linked matrix to the column or row index
-of its corresponding node.}
+\title{Maps Each Column or Row Index of a Linked Matrix to the Column or Row Index
+of Its Corresponding Node.}
 \usage{
 index(x, ...)
 }
 \arguments{
-\item{x}{Either a \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}
-or a \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object.}
+\item{x}{Either a \linkS4class{ColumnLinkedMatrix} or a \linkS4class{RowLinkedMatrix}
+object.}
 
 \item{...}{Additional arguments (see Details).}
 }
@@ -17,8 +17,8 @@ or a \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object.}
 A matrix.
 }
 \description{
-If \code{j} for \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}
-or \code{i} for \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} is
-passed, it will only generate entries for the given indices.
+If \code{j} for \linkS4class{ColumnLinkedMatrix} or \code{i} for \linkS4class{RowLinkedMatrix} is
+passed, it will only generate entries for the given indices. \code{sort}, which
+is set by default, determines whether \code{j} or \code{i} should be sorted before
+building the index.
 }
-

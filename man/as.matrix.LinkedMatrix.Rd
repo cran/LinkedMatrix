@@ -2,19 +2,19 @@
 % Please edit documentation in R/LinkedMatrix.R
 \name{as.matrix.LinkedMatrix}
 \alias{as.matrix.LinkedMatrix}
-\title{Converts a \code{\link[=LinkedMatrix-class]{LinkedMatrix}} instance to a
-\code{matrix} (if small enough).}
+\title{Converts a LinkedMatrix Instance to a Matrix (if Small Enough).}
 \usage{
 \method{as.matrix}{LinkedMatrix}(x, ...)
 }
 \arguments{
-\item{x}{Either a \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}
-or a \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object.}
+\item{x}{Either a \linkS4class{ColumnLinkedMatrix} or a \linkS4class{RowLinkedMatrix}
+object.}
 
 \item{...}{Additional arguments (unused).}
 }
-\description{
-Converts a \code{\link[=LinkedMatrix-class]{LinkedMatrix}} instance to a
-\code{matrix} (if small enough).
+\value{
+A matrix.
 }
-
+\description{
+Converts a LinkedMatrix Instance to a Matrix (if Small Enough).
+}

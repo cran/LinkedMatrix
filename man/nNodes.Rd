@@ -2,15 +2,29 @@
 % Please edit documentation in R/LinkedMatrix.R
 \name{nNodes}
 \alias{nNodes}
-\title{Returns the number of nodes.}
+\title{Returns the Number of Nodes.}
 \usage{
 nNodes(x)
 }
 \arguments{
-\item{x}{Either a \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}
-or a \code{\link[=RowLinkedMatrix-class]{RowLinkedMatrix}} object.}
+\item{x}{Either a \linkS4class{ColumnLinkedMatrix} or a \linkS4class{RowLinkedMatrix}
+object.}
+}
+\value{
+The number of nodes.
 }
 \description{
-Returns the number of nodes.
+Returns the Number of Nodes.
 }
+\examples{
+# Create an example RowLinkedMatrix from various matrix-like objects that
+# correspond in dimensions
+m <- RowLinkedMatrix(
+    ff::ff(initdata = rnorm(50), dim = c(5, 10)),
+    bigmemory::big.matrix(init = rnorm(50), nrow = 5, ncol = 10),
+    matrix(data = rnorm(50), nrow = 5, ncol = 10)
+)
 
+# Get the number of nodes of the RowLinkedMatrix
+nNodes(m)
+}

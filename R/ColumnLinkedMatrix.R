@@ -1,99 +1,117 @@
-subset.ColumnLinkedMatrix <- function(x, i, j, ..., drop) {
-    # Check indices and dimensions
-    nX <- nrow(x)
-    pX <- ncol(x)
-    if (missing(i)) {
-        i <- 1:nX
-    }
-    if (missing(j)) {
-        j <- 1:pX
-    }
-    if (class(i) == "logical") {
-        i <- rep_len(i, nX)
-        i <- which(i)
-    } else if (class(i) == "character") {
-        i <- match(i, rownames(x))
-    }
-    if (class(j) == "logical") {
-        j <- rep_len(j, pX)
-        j <- which(j)
-    } else if (class(j) == "character") {
-        j <- match(j, colnames(x))
-    }
-    n <- length(i)
-    p <- length(j)
-    if (p > pX | n > nX) {
-        stop("Either the number of columns or number of rows requested exceed the number of rows or columns in x, try dim(x)...")
-    }
-    # Providing a sorted column index will eliminate the need to reorder the
-    # result matrix later (avoiding a copy)
-    isUnsorted <- is.unsorted(j)
-    if (isUnsorted) {
-        # Reorder columns for sequential retrieval by chunk
-        originalOrder <- rank(j, ties.method = "first")
-        sortedColumns <- sort(j)
+extract_matrix.ColumnLinkedMatrix <- function(x, i, j, ...) {
+    # Handle x[, FALSE]
+    if (length(j) == 0L) {
+        Z <- matrix(data = integer(), nrow = length(i), ncol = 0L, dimnames = list(rownames(x)[i], NULL))
     } else {
-        sortedColumns <- j
-    }
-    # Compute node inventory
-    globalIndex <- index(x, sortedColumns)
-    whatChunks <- unique(globalIndex[, 1])
-    # If there are several chunks involved, aggregate the result in a separate
-    # matrix, otherwise pass through result
-    if (length(whatChunks) > 1) {
-        # Initialize result matrix as integer matrix because it does not take up as
-        # much space as double() but is more useful than logical()
-        Z <- matrix(data = integer(), nrow = n, ncol = p)
-        # Use dimnames instead of rownames and colnames to avoid copy
-        dimnames(Z) <- list(rownames(x)[i], colnames(x)[sortedColumns])
-        end <- 0
-        for (k in whatChunks) {
-            localIndex <- globalIndex[globalIndex[, 1] == k, , drop = FALSE]
-            ini <- end + 1
-            end <- ini + nrow(localIndex) - 1
-            # Convert to matrix to support data frames
-            Z[, ini:end] <- as.matrix(x[[k]][i, localIndex[, 3], drop = FALSE])
+        # Determine nodes and node boundaries for query
+        index <- index(x, j = j, sort = FALSE)
+        nodeList <- unique(index[, 1L])
+        # If there are several nodes involved in the query, aggregate the
+        # result in a separate matrix, otherwise pass through result
+        if (length(nodeList) > 1L) {
+            # Initialize result matrix as integer() because it does not take up
+            # as much space as double() but is more common than logical()
+            Z <- matrix(data = integer(), nrow = length(i), ncol = length(j), dimnames = list(rownames(x)[i], colnames(x)[j]))
+            for (curNode in nodeList) {
+                if (is.na(curNode)) {
+                    nodeIndex = is.na(index[, 1L])
+                    Z[, nodeIndex] <- NA_integer_
+                } else {
+                    nodeIndex <- index[, 1L] == curNode
+                    nodeIndex[is.na(nodeIndex)] <- FALSE
+                    # Convert to matrix to support data frames
+                    Z[, nodeIndex] <- as.matrix(x[[curNode]][i, index[nodeIndex, 3L], drop = FALSE])
+                }
+            }
+        } else {
+            # Handle x[, NA] or out of bounds
+            if (is.na(nodeList)) {
+                Z <- matrix(data = NA_integer_, nrow = length(i), ncol = length(j), dimnames = list(rownames(x)[i], rep(NA_character_, length(j))))
+            } else {
+                # Convert to matrix to support data frames
+                Z <- as.matrix(x[[nodeList]][i, index[, 3L], drop = FALSE])
+            }
         }
-    } else {
-        Z <- as.matrix(x[[whatChunks]][i, globalIndex[, 3], drop = FALSE])
     }
-    if (isUnsorted) {
-        # Return to original order
-        Z <- Z[, originalOrder]
-    }
-    if (drop == TRUE && (n == 1 || p == 1)) {
-        # Let R handle drop behavior
-        return(Z[, ])
-    } else {
-        return(Z)
-    }
+    return(Z)
 }
 
 
-replace.ColumnLinkedMatrix <- function(x, i, j, ..., value) {
-    if (missing(i)) {
-        i <- 1:nrow(x)
-    }
-    if (missing(j)) {
-        j <- 1:ncol(x)
-    }
-    Z <- matrix(nrow = length(i), ncol = length(j), data = value)
-    # Retrieve nodes and index from ... to speed up sequential writes
-    dotdotdot <- list(...)
-    if (is.null(dotdotdot$nodes)) {
-        nodes <- nodes(x)
+extract_vector.ColumnLinkedMatrix <- function(x, i, ...) {
+    if (length(i) == 0L) {
+        Z <- integer(0L)
     } else {
-        nodes <- dotdotdot$nodes
+        # Determine nodes and node boundaries for query (in this case index()
+        # cannot be used as it is easier to go by the number of elements per
+        # block rather than the number of columns because of column-major
+        # nature of the matrix)
+        # Note that length() could be used here, but it is not required as per
+        # our definition of a matrix-like object.
+        elementsPerNode <- apply(sapply(x, dim), 2, prod)
+        nodeBoundaries <- c(0L, cumsum(elementsPerNode))
+        nodeMembership <- .bincode(i, nodeBoundaries)
+        nodeList <- unique(nodeMembership)
+        # If there are several nodes involved in the query, aggregate the
+        # result in a separate matrix, otherwise pass through result
+        if (length(nodeList) > 1L) {
+            # Initialize result vector as integer() because it does not take up
+            # as much space as double() but is more common than logical()
+            Z <- vector(mode = "integer", length = length(i))
+            for (curNode in nodeList) {
+                if (is.na(curNode)) {
+                    nodeIndex <- is.na(nodeMembership)
+                    Z[nodeIndex] <- NA_integer_
+                } else {
+                    nodeIndex <- nodeMembership == curNode
+                    nodeIndex[is.na(nodeIndex)] <- FALSE
+                    localIndex <- i[nodeIndex] - nodeBoundaries[curNode]
+                    Z[nodeIndex] <- x[[curNode]][localIndex]
+                }
+            }
+        } else {
+            # Handle x[NA] or out of bounds
+            if (is.na(nodeList)) {
+                Z <- rep(NA_integer_, length(i))
+            } else {
+                Z <- x[[nodeList]][i - nodeBoundaries[nodeList]]
+            }
+        }
     }
-    if (is.null(dotdotdot$index)) {
-        index <- index(x)
-    } else {
-        index <- dotdotdot$index
+    return(Z)
+}
+
+
+replace_matrix.ColumnLinkedMatrix <- function(x, i, j, ..., value) {
+    # Convert value vector to matrix
+    dim(value) <- c(length(i), length(j))
+    # Determine node boundaries
+    index <- index(x, j = j, sort = FALSE)
+    nodeList <- unique(index[, 1L])
+    # Replace elements in each node
+    for (curNode in nodeList) {
+        nodeIndex <- index[, 1L] == curNode
+        x[[curNode]][i, index[nodeIndex, 3L]] <- value[, nodeIndex]
     }
-    for (k in 1:nrow(nodes)) {
-        col_z <- (j >= nodes[k, 2]) & (j <= nodes[k, 3])
-        colLocal <- index[j[col_z], 3]
-        x[[k]][i, colLocal] <- Z[, col_z]
+    return(x)
+}
+
+
+replace_vector.ColumnLinkedMatrix <- function(x, i, ..., value) {
+    # Determine nodes and node boundaries for query (in this case index()
+    # cannot be used as it is easier to go by the number of elements per
+    # block rather than the number of columns because of column-major
+    # nature of the matrix)
+    # Note that length() could be used here, but it is not required as per
+    # our definition of a matrix-like object.
+    elementsPerNode <- apply(sapply(x, dim), 2, prod)
+    nodeBoundaries <- c(0L, cumsum(elementsPerNode))
+    nodeMembership <- .bincode(i, nodeBoundaries)
+    nodeList <- unique(nodeMembership)
+    # Replace elements in each node
+    for (curNode in nodeList) {
+        nodeIndex <- nodeMembership == curNode
+        localIndex <- i[nodeIndex] - nodeBoundaries[curNode]
+        x[[curNode]][localIndex] <- value[nodeIndex]
     }
     return(x)
 }
@@ -101,9 +119,9 @@ replace.ColumnLinkedMatrix <- function(x, i, j, ..., value) {
 
 #' @export
 dim.ColumnLinkedMatrix <- function(x) {
-    n <- nrow(x[[1]])
-    p <- 0
-    for (i in 1:nNodes(x)) {
+    n <- nrow(x[[1L]])
+    p <- 0L
+    for (i in 1L:nNodes(x)) {
         p <- p + ncol(x[[i]])
     }
     return(c(n, p))
@@ -112,23 +130,22 @@ dim.ColumnLinkedMatrix <- function(x) {
 
 # This function looks like an S3 method, but isn't one.
 rownames.ColumnLinkedMatrix <- function(x) {
-    out <- rownames(x[[1]])
-    return(out)
+    rownames(x[[1L]])
 }
 
 
 # This function looks like an S3 method, but isn't one.
 colnames.ColumnLinkedMatrix <- function(x) {
-    out <- NULL
-    if (!is.null(colnames(x[[1]]))) {
-        p <- dim(x)[2]
-        out <- rep("", p)
+    names <- NULL
+    if (!is.null(colnames(x[[1L]]))) {
+        p <- dim(x)[2L]
+        names <- rep("", p)
         nodes <- nodes(x)
-        for (i in 1:nrow(nodes)) {
-            out[(nodes[i, 2]:nodes[i, 3])] <- colnames(x[[i]])
+        for (i in 1L:nrow(nodes)) {
+            names[(nodes[i, 2L]:nodes[i, 3L])] <- colnames(x[[i]])
         }
     }
-    return(out)
+    return(names)
 }
 
 
@@ -140,7 +157,7 @@ dimnames.ColumnLinkedMatrix <- function(x) {
 
 # This function looks like an S3 method, but isn't one.
 `rownames<-.ColumnLinkedMatrix` <- function(x, value) {
-    for (i in 1:nNodes(x)) {
+    for (i in 1L:nNodes(x)) {
         rownames(x[[i]]) <- value
     }
     return(x)
@@ -150,8 +167,8 @@ dimnames.ColumnLinkedMatrix <- function(x) {
 # This function looks like an S3 method, but isn't one.
 `colnames<-.ColumnLinkedMatrix` <- function(x, value) {
     nodes <- nodes(x)
-    for (i in 1:nrow(nodes)) {
-        colnames(x[[i]]) <- value[(nodes[i, 2]:nodes[i, 3])]
+    for (i in 1L:nrow(nodes)) {
+        colnames(x[[i]]) <- value[(nodes[i, 2L]:nodes[i, 3L])]
     }
     return(x)
 }
@@ -160,10 +177,10 @@ dimnames.ColumnLinkedMatrix <- function(x) {
 #' @export
 `dimnames<-.ColumnLinkedMatrix` <- function(x, value) {
     d <- dim(x)
-    rownames <- value[[1]]
-    colnames <- value[[2]]
-    if (!is.list(value) || length(value) != 2 || !(is.null(rownames) || length(rownames) == d[1]) || !(is.null(colnames) ||
-        length(colnames) == d[2])) {
+    rownames <- value[[1L]]
+    colnames <- value[[2L]]
+    if (!is.list(value) || length(value) != 2L || !(is.null(rownames) || length(rownames) == d[1L]) || !(is.null(colnames) ||
+        length(colnames) == d[2L])) {
         stop("invalid dimnames")
     }
     x <- `rownames<-.ColumnLinkedMatrix`(x, rownames)
@@ -172,20 +189,19 @@ dimnames.ColumnLinkedMatrix <- function(x) {
 }
 
 
-#' Combine matrix-like objects by columns.
+#' Combine Matrix-Like Objects by Columns.
 #'
-#' Compared to the
-#' \code{\link[=initialize,ColumnLinkedMatrix-method]{ColumnLinkedMatrix}}
-#' constructor, nested \code{\link[=LinkedMatrix-class]{LinkedMatrix}} objects
-#' that are passed via \code{...} will not be treated as matrix-like objects,
-#' but their nodes will be extracted and merged with the new
-#' \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} object for a
-#' more compact representation.
+#' Compared to the [initialize()][initialize,ColumnLinkedMatrix-method()]
+#' method, nested [LinkedMatrix-class] objects that are passed via `...` will
+#' not be treated as matrix-like objects, but their nodes will be extracted and
+#' merged with the new [ColumnLinkedMatrix-class] object for a more compact
+#' representation. This method will currently only work for
+#' [ColumnLinkedMatrix-class] objects.
 #'
 #' @param ... Matrix-like objects to be combined by columns.
 #' @param deparse.level Currently unused, defaults to 0.
 #' @export
-cbind.ColumnLinkedMatrix <- function(..., deparse.level = 0) {
+cbind.ColumnLinkedMatrix <- function(..., deparse.level = 0L) {
     dotdotdot <- list(...)
     nodes <- list()
     for (i in seq_len(length(dotdotdot))) {
@@ -201,119 +217,143 @@ cbind.ColumnLinkedMatrix <- function(..., deparse.level = 0) {
 }
 
 
-#' Combine matrix-like objects by rows.
-#'
-#' @param ... Matrix-like objects to be combined by rows.
-#' @param deparse.level Currently unused, defaults to 0.
+#' @rdname rbind.RowLinkedMatrix
 #' @export
-rbind.ColumnLinkedMatrix <- function(..., deparse.level = 1) {
+rbind.ColumnLinkedMatrix <- function(..., deparse.level = 1L) {
     stop("rbind is currently undefined for ColumnLinkedMatrix")
 }
 
 
 #' @export
 nodes.ColumnLinkedMatrix <- function(x) {
-    n <- nNodes(x)
-    OUT <- matrix(integer(), nrow = n, ncol = 3, dimnames = list(NULL, c("node", "col.ini", "col.end")))
-    end <- 0
-    for (node in 1:n) {
-        ini <- end + 1
-        end <- ini + ncol(x[[node]]) - 1
-        OUT[node, ] <- c(node, ini, end)
-    }
-    return(OUT)
+    colsPerNode <- sapply(x, ncol)
+    colUpperBoundaries <- cumsum(colsPerNode)
+    colLowerBoundaries <- colUpperBoundaries - colsPerNode + 1
+    n <- length(colsPerNode)
+    nodes <- matrix(data = c(1:n, colLowerBoundaries, colUpperBoundaries), nrow = n, ncol = 3L, dimnames = list(NULL, c("node", "col.ini", "col.end")))
+    return(nodes)
 }
 
 
 #' @export
-index.ColumnLinkedMatrix <- function(x, j = NULL, ...) {
+index.ColumnLinkedMatrix <- function(x, j = NULL, sort = TRUE, ...) {
     nodes <- nodes(x)
-    p <- nodes[nrow(nodes), 3]
     if (!is.null(j)) {
-        if (is.unsorted(j)) {
+        j <- as.integer(j)
+        if (sort) {
             j <- sort(j)
         }
     } else {
-        j <- seq_len(p)
+        j <- seq_len(nodes[nrow(nodes), 3L])
     }
-    OUT <- matrix(nrow = length(j), ncol = 3, dimnames = list(NULL, c("node", "col.global", "col.local")))
-    OUT[, 2] <- j
-    for (node in 1:nrow(nodes)) {
-        globalIdx <- which(j >= nodes[node, 2] & j <= nodes[node, 3])
-        if (node > 1) {
-            localIdx <- j[globalIdx] - nodes[node - 1, 3]
-        } else {
-            localIdx <- j[globalIdx]
-        }
-        OUT[globalIdx, 1] <- node
-        OUT[globalIdx, 3] <- localIdx
-    }
-    return(OUT)
+    nodeBoundaries <- c(0L, nodes[, 3L])
+    nodeMembership <- .bincode(j, breaks = nodeBoundaries)
+    index <- matrix(data = c(nodeMembership, j, j - nodeBoundaries[nodeMembership]), nrow = length(j), ncol = 3L, dimnames = list(NULL, c("node", "col.global", "col.local")))
+    return(index)
 }
 
 
-#' An S4 class to represent a column-linked
-#' \code{\link[=LinkedMatrix-class]{LinkedMatrix}}.
+#' Converts an Object to a LinkedMatrix Object.
+#'
+#' @param x An object to convert to a [LinkedMatrix-class] object.
+#' @param ... Additional arguments.
+#' @return A [LinkedMatrix-class] object.
+#' @example man/examples/as.ColumnLinkedMatrix.R
+#' @export
+as.ColumnLinkedMatrix <- function(x, ...) {
+    UseMethod("as.ColumnLinkedMatrix")
+}
+
+
+#' @rdname as.ColumnLinkedMatrix
+#' @export
+as.ColumnLinkedMatrix.list <- function(x, ...) {
+    do.call(ColumnLinkedMatrix, x, ...)
+}
+
+
+#' A Class for Linking Matrices by Columns or Rows.
 #'
 #' This class treats a list of matrix-like objects that are linked together by
-#' columns and have the same number of rows similarly to a regular \code{matrix}
-#' by implementing key methods such as \code{[} and \code{[<-} for extracting
-#' and replacing matrix elements, \code{dim} to retrieve dimensions, and
-#' \code{dimnames} and \code{dimnames<-} to retrieve and set dimnames. Each list
-#' element is called a node and can be extracted or replaced using \code{[[} and
-#' \code{[[<-}. A matrix-like object is one that has two dimensions and
-#' implements at least \code{dim} and \code{[}.
+#' columns (`ColumnLinkedMatrix`) or rows (`RowLinkedMatrix`) and have the same
+#' number of rows similarly to a regular `matrix` by implementing key methods
+#' such as `[` and `[<-` for extracting and replacing matrix elements, `dim` to
+#' retrieve dimensions, and `dimnames` and `dimnames<-` to retrieve and set
+#' dimnames. Each list element is called a node and can be extracted or
+#' replaced using `[[` and `[[<-`. A matrix-like object is one that has two
+#' dimensions and implements at least `dim` and `[`.
 #'
-#' There are several ways to create an instance of this class: either by using
-#' one of the constructors
-#' \code{\link[=initialize,ColumnLinkedMatrix-method]{ColumnLinkedMatrix(...)}}
-#' or
-#' \code{\link[=initialize,ColumnLinkedMatrix-method]{new("ColumnLinkedMatrix",...)}},
-#' or by using the more general \code{\link{LinkedMatrix}} function that
-#' constructs objects of certain dimensions with a configurable number and type
-#' of nodes.
+#' Internally, this class is an S4 class that contains `list`. Each node can be
+#' accessed using the `[[` operator. `lapply` is also possible.
+#' `ColumnLinkedMatrix` and `RowLinkedMatrix` form a class union called
+#' [LinkedMatrix-class].
 #'
+#' @section Methods:
+#' - `[`
+#' - `[<-`
+#' - `dim`
+#' - `dimnames`
+#' - `dimnames<-`
+#' - `as.matrix`
+#' - `is.matrix`
+#' - `length`
+#' - `print`
+#' - `str`
+#' - `cbind` (for `ColumnLinkedMatrix`)
+#' - `rbind` (for `RowLinkedMatrix`)
+#'
+#' @seealso [initialize()][initialize,ColumnLinkedMatrix-method()] to create a
+#' `ColumnLinkedMatrix` or `RowLinkedMatrix` object from scratch,
+#' [as.ColumnLinkedMatrix()] to create a `ColumnLinkedMatrix` or
+#' `RowLinkedMatrix` object from other objects, [LinkedMatrix()] to create an
+#' empty, prespecified `LinkedMatrix` object, [nNodes()] to get the number of
+#' nodes of a `LinkedMatrix` object.
+#' @example man/examples/ColumnLinkedMatrix.R
 #' @export ColumnLinkedMatrix
 #' @exportClass ColumnLinkedMatrix
 ColumnLinkedMatrix <- setClass("ColumnLinkedMatrix", contains = "list")
 
 
-#' Creates a new \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}
-#' instance.
+#' Create a LinkedMatrix Object.
 #'
-#' This method is run when a
-#' \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} object is created
-#' using
-#' \code{\link[=initialize,ColumnLinkedMatrix-method]{ColumnLinkedMatrix(...)}}
-#' or
-#' \code{\link[=initialize,ColumnLinkedMatrix-method]{new("ColumnLinkedMatrix",...)}}
-#' and accepts a list of matrix-like objects as \code{...}. A matrix-like object
-#' is one that has two dimensions and implements at least \code{dim} and
-#' \code{[}. \code{\link[=LinkedMatrix-class]{LinkedMatrix}} objects can be
-#' nested as long as they are conformable. Each object needs to have the same
-#' number of rows to be linked together. If no matrix-like objects are given, a
-#' single 1x1 node of type \code{matrix} filled with \code{NA} is returned.
+#' This function constructs a new [ColumnLinkedMatrix-class] or
+#' [RowLinkedMatrix-class] object from a list of matrix-like objects.
+#'
+#' A matrix-like object is one that has two dimensions and implements at least
+#' `dim` and `[`. Each object needs to have the same number of rows (for
+#' `ColumnLinkedMatrix`) or columns (for `RowLinkedMatrix`) to be linked
+#' together. If no matrix-like objects are given, a single 1x1 node of type
+#' `matrix` filled with `NA` is returned. [LinkedMatrix-class] objects can be
+#' nested as long as they are conformable.
 #'
 #' @inheritParams base::list
-#' @param .Object The
-#'   \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} instance to be
-#'   initialized. This argument is passed in by R and can be ignored, but still
-#'   needs to be documented.
-#' @param ... A sequence of matrix-like objects of the same row-dimension.
+#' @param .Object Internal, used by [methods::initialize()] generic.
+#' @param ... A sequence of matrix-like objects of the same row-dimension (for
+#' `ColumnLinkedMatrix`) or column-dimension (for `RowLinkedMatrix`).
+#' @return Either a `ColumnLinkedMatrix` or a `RowLinkedMatrix` object.
+#' @seealso [LinkedMatrix()] to create an empty, prespecified
+#' [LinkedMatrix-class] object.
+#' @example man/examples/initialize.R
 #' @export
 setMethod("initialize", signature(.Object = "ColumnLinkedMatrix"), function(.Object, ...) {
     nodes <- list(...)
     # Append at least one matrix
-    if (length(nodes) == 0) {
-        nodes[[1]] <- matrix()
+    if (length(nodes) == 0L) {
+        nodes[[1L]] <- matrix()
     } else {
-        # Detect non-matrix objects by checking dimensions
-        if (any(sapply(nodes, function(x) length(dim(x)) != 2))) {
+        # Stop if matrices are not matrix-like
+        if (!all(sapply(nodes, crochet:::isMatrixLike))) {
             stop("arguments need to be matrix-like")
         }
-        # Detect matrices that do not match in dimensions
-        if (length(unique(sapply(nodes, nrow))) != 1) {
+        # Stop if dimensions of matrices do not match
+        if (length(unique(sapply(nodes, nrow))) != 1L) {
             stop("arguments need the same number of rows")
+        }
+        # Warn if rownames of matrices do not match
+        names <- lapply(nodes, rownames)
+        names <- names[!sapply(names, is.null)]
+        if (length(names) > 1L && !all(duplicated(names) | duplicated(names, fromLast = TRUE))) {
+            warning("row names of matrix-like objects do not match")
         }
     }
     .Object <- callNextMethod(.Object, nodes)
@@ -321,27 +361,17 @@ setMethod("initialize", signature(.Object = "ColumnLinkedMatrix"), function(.Obj
 })
 
 
-#' Extract parts of a
-#' \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}.
-#'
-#' This method is run when the \code{[]} operator is used on a
-#' \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} object.
-#'
-#' @inheritParams base::`[`
-#' @param j Column indices.
-#' @param ... Additional arguments
 #' @export
-setMethod("[", signature(x = "ColumnLinkedMatrix"), subset.ColumnLinkedMatrix)
+`[.ColumnLinkedMatrix` <- crochet::extract(
+    extract_vector = extract_vector.ColumnLinkedMatrix,
+    extract_matrix = extract_matrix.ColumnLinkedMatrix,
+    allowDoubles = TRUE # this may not be compatible with all matrix-like objects
+)
 
 
-#' Replace parts of a
-#' \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}}.
-#'
-#' This method is run when the \code{[]} operator is used in an assignment on a
-#' \code{\link[=ColumnLinkedMatrix-class]{ColumnLinkedMatrix}} object.
-#'
-#' @inheritParams base::`[<-`
-#' @param j Column indices.
-#' @param ... Additional arguments
 #' @export
-setReplaceMethod("[", signature(x = "ColumnLinkedMatrix"), replace.ColumnLinkedMatrix)
+`[<-.ColumnLinkedMatrix` <- crochet::replace(
+    replace_vector = replace_vector.ColumnLinkedMatrix,
+    replace_matrix = replace_matrix.ColumnLinkedMatrix,
+    allowDoubles = TRUE # this may not be compatible with all matrix-like objects
+)
