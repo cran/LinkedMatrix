@@ -130,14 +130,16 @@ dim.RowLinkedMatrix <- function(x) {
 
 # This function looks like an S3 method, but isn't one.
 rownames.RowLinkedMatrix <- function(x) {
-    names <- NULL
-    if (!is.null(rownames(x[[1L]]))) {
-        n <- dim(x)[1L]
-        names <- rep("", n)
-        nodes <- nodes(x)
-        for (i in 1L:nrow(nodes)) {
-            names[(nodes[i, 2L]:nodes[i, 3L])] <- rownames(x[[i]])
+    nodes <- nodes(x)
+    names <- rep("", nodes[nrow(nodes), 3L])
+    for (i in seq_len(nrow(nodes))) {
+        nodeNames <- rownames(x[[i]])
+        if (!is.null(nodeNames)) {
+            names[(nodes[i, 2L]:nodes[i, 3L])] <- nodeNames
         }
+    }
+    if (all(names == "")) {
+        names <- NULL
     }
     return(names)
 }
@@ -211,7 +213,7 @@ cbind.RowLinkedMatrix <- function(..., deparse.level = 0L) {
 rbind.RowLinkedMatrix <- function(..., deparse.level = 1L) {
     dotdotdot <- list(...)
     nodes <- list()
-    for (i in seq_len(length(dotdotdot))) {
+    for (i in seq_along(dotdotdot)) {
         node <- dotdotdot[[i]]
         if (is(node, "LinkedMatrix")) {
             # Extract nodes from LinkedMatrix object
@@ -291,9 +293,8 @@ setMethod("initialize", signature(.Object = "RowLinkedMatrix"), function(.Object
         }
         # Warn if colnames of matrices do not match
         names <- lapply(nodes, colnames)
-        names <- names[!sapply(names, is.null)]
         if (length(names) > 1L && !all(duplicated(names) | duplicated(names, fromLast = TRUE))) {
-            warning("column names of matrix-like objects do not match")
+            warning("column names of matrix-like objects do not match: colnames() only uses the column names of the first node")
         }
     }
     .Object <- callNextMethod(.Object, nodes)
