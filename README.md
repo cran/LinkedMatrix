@@ -4,6 +4,7 @@ LinkedMatrix
 [![CRAN_Status_Badge](http://www.r-pkg.org/badges/version/LinkedMatrix)](https://CRAN.R-project.org/package=LinkedMatrix)
 [![Rdoc](http://www.rdocumentation.org/badges/version/LinkedMatrix)](http://www.rdocumentation.org/packages/LinkedMatrix)
 [![Travis-CI Build Status](https://travis-ci.org/QuantGen/LinkedMatrix.svg?branch=master)](https://travis-ci.org/QuantGen/LinkedMatrix)
+[![AppVeyor Build Status](https://ci.appveyor.com/api/projects/status/8rg0di3l8x2ahjh9?svg=true)](https://ci.appveyor.com/project/agrueneberg/linkedmatrix)
 [![Coverage status](https://codecov.io/gh/QuantGen/LinkedMatrix/branch/master/graph/badge.svg)](https://codecov.io/github/QuantGen/LinkedMatrix?branch=master)
 
 LinkedMatrix is an R package that provides matrices implemented as lists of matrix-like nodes, linked by columns or rows.
@@ -44,19 +45,19 @@ install.packages("LinkedMatrix")
 Alternatively, install the development version from GitHub:
 
 ```R
-# install.packages("devtools")
-devtools::install_github("QuantGen/LinkedMatrix")
+# install.packages("remotes")
+remotes::install_github("QuantGen/LinkedMatrix")
 ```
-
-
-Contribute
-----------
-
-- Issue Tracker: https://github.com/QuantGen/LinkedMatrix/issues
-- Source Code: https://github.com/QuantGen/LinkedMatrix
 
 
 Documentation
 -------------
 
 Further documentation can be found on [RDocumentation](http://www.rdocumentation.org/packages/LinkedMatrix).
+
+
+Contributing
+------------
+
+- Issue Tracker: https://github.com/QuantGen/LinkedMatrix/issues
+- Source Code: https://github.com/QuantGen/LinkedMatrix

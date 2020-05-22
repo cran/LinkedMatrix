@@ -36,18 +36,17 @@ extract_matrix.RowLinkedMatrix <- function(x, i, j, ...) {
     return(Z)
 }
 
-
 extract_vector.RowLinkedMatrix <- function(x, i, ...) {
     if (length(i) == 0L) {
         Z <- integer(0L)
     } else {
         # Convert one-dimensional index to two-dimensional index
-        ij <- crochet::ktoij(x, i)
+        ij <- ktoij(x, i)
         # Determine nodes and node boundaries for query (in this case we cannot
         # use index() as rowsPerNode is needed to recalculate the single index)
         rowsPerNode <- sapply(x, nrow)
         nodeBoundaries <- c(0L, cumsum(rowsPerNode))
-        nodeMembership <- .bincode(ij$i, nodeBoundaries)
+        nodeMembership <- .bincode(ij[["i"]], nodeBoundaries)
         nodeList <- unique(nodeMembership)
         # If there are several nodes involved in the query, aggregate the
         # result in a separate matrix, otherwise pass through result
@@ -63,7 +62,7 @@ extract_vector.RowLinkedMatrix <- function(x, i, ...) {
                     nodeIndex <- nodeMembership == curNode
                     nodeIndex[is.na(nodeIndex)] <- FALSE
                     # Convert two-dimensional index back to one-dimensional index
-                    localIndex <- ((ij$j[nodeIndex] - 1L) * rowsPerNode[curNode] + ij$i[nodeIndex]) - nodeBoundaries[curNode]
+                    localIndex <- ((ij[["j"]][nodeIndex] - 1L) * rowsPerNode[curNode] + ij[["i"]][nodeIndex]) - nodeBoundaries[curNode]
                     Z[nodeIndex] <- x[[curNode]][localIndex]
                 }
             }
@@ -73,14 +72,13 @@ extract_vector.RowLinkedMatrix <- function(x, i, ...) {
                 Z <- rep(NA_integer_, length(i))
             } else {
                 # Convert two-dimensional index back to one-dimensional index
-                localIndex <- ((ij$j - 1L) * rowsPerNode[nodeList] + ij$i) - nodeBoundaries[nodeList]
+                localIndex <- ((ij[["j"]] - 1L) * rowsPerNode[nodeList] + ij[["i"]]) - nodeBoundaries[nodeList]
                 Z <- x[[nodeList]][localIndex]
             }
         }
     }
     return(Z)
 }
-
 
 replace_matrix.RowLinkedMatrix <- function(x, i, j, ..., value) {
     # Convert value vector to matrix
@@ -96,28 +94,25 @@ replace_matrix.RowLinkedMatrix <- function(x, i, j, ..., value) {
     return(x)
 }
 
-
 replace_vector.RowLinkedMatrix <- function(x, i, ..., value) {
     # Convert one-dimensional index to two-dimensional index
-    ij <- crochet::ktoij(x, i)
+    ij <- ktoij(x, i)
     # Determine nodes and node boundaries for query (in this case we cannot
     # use index() as rowsPerNode is needed to recalculate the single index)
     rowsPerNode <- sapply(x, nrow)
     nodeBoundaries <- c(0L, cumsum(rowsPerNode))
-    nodeMembership <- .bincode(ij$i, nodeBoundaries)
+    nodeMembership <- .bincode(ij[["i"]], nodeBoundaries)
     nodeList <- unique(nodeMembership)
     # Replace elements in each node
     for (curNode in nodeList) {
         nodeIndex <- nodeMembership == curNode
         # Convert two-dimensional index back to one-dimensional index
-        localIndex <- ((ij$j[nodeIndex] - 1L) * rowsPerNode[curNode] + ij$i[nodeIndex]) - nodeBoundaries[curNode]
+        localIndex <- ((ij[["j"]][nodeIndex] - 1L) * rowsPerNode[curNode] + ij[["i"]][nodeIndex]) - nodeBoundaries[curNode]
         x[[curNode]][localIndex] <- value[nodeIndex]
     }
     return(x)
 }
 
-
-#' @export
 dim.RowLinkedMatrix <- function(x) {
     p <- ncol(x[[1L]])
     n <- 0L
@@ -126,7 +121,6 @@ dim.RowLinkedMatrix <- function(x) {
     }
     return(c(n, p))
 }
-
 
 # This function looks like an S3 method, but isn't one.
 rownames.RowLinkedMatrix <- function(x) {
@@ -144,18 +138,14 @@ rownames.RowLinkedMatrix <- function(x) {
     return(names)
 }
 
-
 # This function looks like an S3 method, but isn't one.
 colnames.RowLinkedMatrix <- function(x) {
     colnames(x[[1L]])
 }
 
-
-#' @export
 dimnames.RowLinkedMatrix <- function(x) {
     list(rownames.RowLinkedMatrix(x), colnames.RowLinkedMatrix(x))
 }
-
 
 # This function looks like an S3 method, but isn't one.
 `rownames<-.RowLinkedMatrix` <- function(x, value) {
@@ -166,7 +156,6 @@ dimnames.RowLinkedMatrix <- function(x) {
     return(x)
 }
 
-
 # This function looks like an S3 method, but isn't one.
 `colnames<-.RowLinkedMatrix` <- function(x, value) {
     for (i in 1L:nNodes(x)) {
@@ -175,8 +164,6 @@ dimnames.RowLinkedMatrix <- function(x) {
     return(x)
 }
 
-
-#' @export
 `dimnames<-.RowLinkedMatrix` <- function(x, value) {
     d <- dim(x)
     rownames <- value[[1L]]
@@ -190,26 +177,6 @@ dimnames.RowLinkedMatrix <- function(x) {
     return(x)
 }
 
-
-#' @rdname cbind.ColumnLinkedMatrix
-#' @export
-cbind.RowLinkedMatrix <- function(..., deparse.level = 0L) {
-    stop("cbind is currently undefined for RowLinkedMatrix")
-}
-
-
-#' Combine Matrix-Like Objects by Rows.
-#'
-#' Compared to the [initialize()][initialize,RowLinkedMatrix-method()] method,
-#' nested [LinkedMatrix-class] objects that are passed via `...` will not be
-#' treated as matrix-like objects, but their nodes will be extracted and merged
-#' with the new [RowLinkedMatrix-class] object for a more compact
-#' representation. This method will currently only work for
-#' [RowLinkedMatrix-class] objects.
-#'
-#' @param ... Matrix-like objects to be combined by rows.
-#' @param deparse.level Currently unused, defaults to 0.
-#' @export
 rbind.RowLinkedMatrix <- function(..., deparse.level = 1L) {
     dotdotdot <- list(...)
     nodes <- list()
@@ -225,8 +192,6 @@ rbind.RowLinkedMatrix <- function(..., deparse.level = 1L) {
     do.call(RowLinkedMatrix, nodes)
 }
 
-
-#' @export
 nodes.RowLinkedMatrix <- function(x) {
     rowsPerNode <- sapply(x, nrow)
     rowUpperBoundaries <- cumsum(rowsPerNode)
@@ -236,8 +201,6 @@ nodes.RowLinkedMatrix <- function(x) {
     return(nodes)
 }
 
-
-#' @export
 index.RowLinkedMatrix <- function(x, i = NULL, sort = TRUE, ...) {
     nodes <- nodes(x)
     if (!is.null(i)) {
@@ -254,64 +217,45 @@ index.RowLinkedMatrix <- function(x, i = NULL, sort = TRUE, ...) {
     return(index)
 }
 
-
-#' @rdname as.ColumnLinkedMatrix
-#' @export
 as.RowLinkedMatrix <- function(x, ...) {
     UseMethod("as.RowLinkedMatrix")
 }
 
-
-#' @rdname as.ColumnLinkedMatrix
-#' @export
 as.RowLinkedMatrix.list <- function(x, ...) {
     do.call(RowLinkedMatrix, x, ...)
 }
 
-
-#' @rdname ColumnLinkedMatrix-class
-#' @export RowLinkedMatrix
-#' @exportClass RowLinkedMatrix
 RowLinkedMatrix <- setClass("RowLinkedMatrix", contains = "list")
 
-
-#' @rdname initialize-ColumnLinkedMatrix-method
-#' @export
-setMethod("initialize", signature(.Object = "RowLinkedMatrix"), function(.Object, ...) {
-    nodes <- list(...)
-    # Append at least one matrix
+setValidity("RowLinkedMatrix", function(object) {
+    nodes <- slot(object, ".Data")
+    # Stop unless there is more than one node
     if (length(nodes) == 0L) {
-        nodes[[1L]] <- matrix()
-    } else {
-        # Stop if matrices are not matrix-like
-        if (!all(sapply(nodes, crochet:::isMatrixLike))) {
-            stop("arguments need to be matrix-like")
-        }
-        # Stop if dimensions of matrices do not match
-        if (length(unique(sapply(nodes, ncol))) != 1L) {
-            stop("arguments need the same number of columns")
-        }
-        # Warn if colnames of matrices do not match
-        names <- lapply(nodes, colnames)
-        if (length(names) > 1L && !all(duplicated(names) | duplicated(names, fromLast = TRUE))) {
-            warning("column names of matrix-like objects do not match: colnames() only uses the column names of the first node")
-        }
+        return("there needs to be at least one node")
     }
-    .Object <- callNextMethod(.Object, nodes)
-    return(.Object)
+    # Stop if matrices are not matrix-like
+    if (!all(sapply(nodes, isMatrixLike))) {
+        return("arguments need to be matrix-like")
+    }
+    # Stop if dimensions of matrices do not match
+    if (length(unique(sapply(nodes, ncol))) != 1L) {
+        return("arguments need the same number of columns")
+    }
+    # Warn if colnames of matrices do not match
+    names <- lapply(nodes, colnames)
+    if (length(names) > 1L && !all(duplicated(names) | duplicated(names, fromLast = TRUE))) {
+        warning("column names of matrix-like objects do not match: colnames() only uses the column names of the first node")
+    }
+    return(TRUE)
 })
 
-
-#' @export
-`[.RowLinkedMatrix` <- crochet::extract(
+`[.RowLinkedMatrix` <- extract(
     extract_vector = extract_vector.RowLinkedMatrix,
     extract_matrix = extract_matrix.RowLinkedMatrix,
     allowDoubles = TRUE # this may not be compatible with all matrix-like objects
 )
 
-
-#' @export
-`[<-.RowLinkedMatrix` <- crochet::replace(
+`[<-.RowLinkedMatrix` <- replace(
     replace_vector = replace_vector.RowLinkedMatrix,
     replace_matrix = replace_matrix.RowLinkedMatrix,
     allowDoubles = TRUE # this may not be compatible with all matrix-like objects
